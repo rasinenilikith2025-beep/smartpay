@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SmartPay: Payment Pipeline Hazard Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#0b2447;--royal:#1d4ed8;--blue:#2563eb;--sky:#e8f0ff;--bg:#f4f6fb;--card:#fff;--line:#e2e8f3;
+  --text:#0f1b33;--muted:#5a6a85;--green:#12a150;--green-bg:#e6f6ec;--red:#d92d3f;--red-bg:#fdecee;
+  --amber:#b87400;--amber-bg:#fff3d6;
+  color-scheme:light;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;color:var(--navy);letter-spacing:-.01em}
+h2{font-size:18px}h3{font-size:16px}
+p{margin:0 0 10px}
+a{color:var(--royal)}
+:focus-visible{outline:3px solid #93b4ff;outline-offset:2px;border-radius:6px}
+.sm{font-size:13px}.muted{color:var(--muted)}
+.row{display:flex;align-items:center;gap:10px}.between{justify-content:space-between}.wrap{flex-wrap:wrap}.gap{gap:10px}
+.ic{flex:none;vertical-align:middle}
+
+/* layout */
+.side{position:fixed;left:0;top:0;bottom:0;width:248px;background:var(--navy);color:#b9c8e8;display:flex;flex-direction:column;
+  padding:calc(18px + env(safe-area-inset-top,0px)) 14px calc(18px + env(safe-area-inset-bottom,0px));z-index:40;transition:transform .25s}
+.brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:18px;padding:4px 8px 20px}
+.logo{width:34px;height:34px;border-radius:10px;background:var(--blue);display:grid;place-items:center;color:#fff}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:#b9c8e8;text-decoration:none;font-weight:500}
+.nav a:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav a[aria-current="page"]{background:var(--blue);color:#fff}
+.side-foot{margin-top:auto;font-size:12px;color:#8ea3cc;padding:10px 8px}
+.scrim{display:none}
+.main{margin-left:248px;min-height:100vh}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 24px}
+.btn.menu-btn{display:none}
+.short{display:none}
+.topbar .row{gap:6px;min-width:0}
+.content{padding:24px;max-width:1200px;margin:0 auto}
+.page-head{margin-bottom:18px}
+.page-head h1{font-size:26px;margin-bottom:4px}
+.page-head p{color:var(--muted);margin:0}
+@media (max-width:900px){
+  .side{transform:translateX(-100%)}
+  .side.open{transform:none}
+  .scrim.show{display:block;position:fixed;inset:0;background:rgba(11,36,71,.45);z-index:35}
+  .main{margin-left:0}
+  .btn.menu-btn{display:inline-flex}
+  .topbar{padding:10px 12px}
+  .long{display:none}.short{display:inline}
+  .btn.menu-btn{padding:8px 10px}
+  .content{padding:16px}
+}
+
+/* components */
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 2px rgba(15,27,51,.04),0 6px 20px rgba(15,27,51,.05)}
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;color:var(--text);padding:9px 14px;border-radius:10px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
+.btn:hover{background:#f1f5fd;border-color:#cdd9ef}
+.btn.primary{background:var(--royal);border-color:var(--royal);color:#fff}
+.btn.primary:hover{background:#1e40af}
+.btn.danger{color:var(--red);border-color:#f3c3c8}
+.btn.danger:hover{background:var(--red-bg)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:600;background:#eef1f7;color:#43516b;white-space:nowrap}
+.b-green{background:var(--green-bg);color:#0a6b35}.b-red{background:var(--red-bg);color:#a11c2b}
+.b-amber{background:var(--amber-bg);color:#7a4d00}.b-blue{background:var(--sky);color:#173a9c}
+.notice{background:var(--sky);border:1px solid #bcd0fb;color:#16348c;border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:16px}
+.stat{padding:16px}
+.stat .l{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px}
+.stat .v{font-size:26px;font-weight:700;color:var(--navy);margin-top:4px}
+.stat .u{font-size:13px;font-weight:500;color:var(--muted)}
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
+.tbl th{text-align:left;font-weight:600;color:var(--muted);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px;border-bottom:1px solid #eef2f9;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+.empty{text-align:center;color:var(--muted);padding:28px 10px}
+.field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.field label{font-weight:600;font-size:13.5px}
+input[type=text],input[type=number],input[type=search],select{font:inherit;padding:10px 12px;border:1px solid #cbd6ea;border-radius:10px;background:#fff;color:var(--text);width:100%}
+select.inl{width:auto;padding:8px 10px}
+.form-msg{min-height:22px;font-size:14px;margin-bottom:10px}
+.form-msg.err{color:var(--red);font-weight:600}.form-msg.ok{color:#0a6b35;font-weight:600}
+.two{display:grid;grid-template-columns:1.1fr .9fr;gap:16px;margin-top:16px}
+@media (max-width:900px){.two{grid-template-columns:1fr}}
+.ctl{margin:12px 0 4px;align-items:center}
+.ctl label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin:10px 0 16px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.acc{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eef2f9;font-size:14px}
+.acc:last-child{border-bottom:0}
+.log{max-height:260px;overflow:auto;font-size:13.5px;margin:0;padding:0;list-style:none}
+.log li{padding:7px 0;border-bottom:1px solid #eef2f9;display:flex;gap:10px}
+.log .c{color:var(--muted);min-width:64px;font-variant-numeric:tabular-nums}
+
+/* pipeline */
+.pipe{position:relative}
+.cols{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+.col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.stage{border:1.5px solid var(--line);border-radius:14px;padding:12px;background:#fff;position:relative;transition:border-color .25s,background .25s}
+.col:not(:last-child) .stage::after{content:"";position:absolute;right:-11px;top:50%;width:8px;height:8px;border-top:2px solid #b8c6e2;border-right:2px solid #b8c6e2;transform:translateY(-50%) rotate(45deg)}
+.stage-h{display:flex;gap:8px;align-items:center;font-weight:700;font-size:13px;color:var(--navy)}
+.stage p{margin:6px 0 8px;color:var(--muted);font-size:12px;line-height:1.35}
+.stage-state{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#eef1f7;color:#52617c}
+.col.s-active .stage{border-color:var(--blue);background:#f3f7ff}.col.s-active .stage-state{background:var(--sky);color:#173a9c}
+.col.s-stalled .stage{border-color:#e8b84d;background:#fffaf0}.col.s-stalled .stage-state{background:var(--amber-bg);color:#7a4d00}
+.col.s-error .stage{border-color:#ec8793;background:#fff6f7}.col.s-error .stage-state{background:var(--red-bg);color:#a11c2b}
+.col.s-done .stage{border-color:#7fd0a1;background:#f4fcf7}.col.s-done .stage-state{background:var(--green-bg);color:#0a6b35}
+.zones{display:flex;flex-direction:column;gap:8px}
+.zone{position:relative;border-radius:12px;background:#f7f9fd;border:1px solid #e8edf7}
+.zone.side{background:transparent;border:1.5px dashed #cdd7ea}
+.zone.side::before{content:"Waiting or redirected";position:absolute;left:8px;top:3px;font-size:10px;color:#8a97ae}
+.pipe.vertical .cols{grid-template-columns:1fr}
+.pipe.vertical .col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.6fr);gap:10px;align-items:stretch}
+.pipe.vertical .zones{flex-direction:row}
+.pipe.vertical .zone{flex:1;min-width:0}
+.pipe.vertical .stage::after{display:none}
+.pipe.vertical .zone.side::before{content:"Waiting"}
+.pipe.compact .stage{padding:8px}
+.pipe.compact .stage-h{font-size:11.5px}
+.pipe.compact .stage-h .ic{display:none}
+.pipe.compact .cols{gap:8px}
+.pipe.compact .col:not(:last-child) .stage::after{display:none}
+.pipe.compact .zone.side::before{content:"Waiting";}
+.tok-layer{position:absolute;inset:0;pointer-events:none}
+.tok{position:absolute;left:0;top:0;height:30px;display:flex;align-items:center;padding:0 9px;border-radius:9px;font-size:12px;font-weight:600;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border:1px solid;
+  transition:transform .6s cubic-bezier(.4,.1,.2,1),width .3s,opacity .4s,background-color .3s}
+.t-processing{background:var(--sky);border-color:#9db9f5;color:#173a9c}
+.t-stalled{background:var(--amber-bg);border-color:#efc56a;color:#7a4d00}
+.t-completed{background:var(--green-bg);border-color:#8fd3ab;color:#0a6b35}
+.t-rejected,.t-hazard{background:var(--red-bg);border-color:#f0a3ab;color:#9c1c2b}
+.t-hazard{box-shadow:0 0 0 2px rgba(217,45,63,.18)}
+.t-queued{background:#eef1f7;border-color:#cdd5e4;color:#43516b}
+
+/* lab */
+.lab-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-bottom:16px}
+.hz{display:flex;flex-direction:column;gap:6px}
+.hz .btn{align-self:flex-start;margin-top:auto}
+.hz.sel{border-color:var(--blue);box-shadow:0 0 0 3px #dbe7ff}
+.hz .scn{font-size:13.5px;color:var(--muted)}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+@media (max-width:1000px){.cmp{grid-template-columns:1fr}}
+.panel-bad{border-top:4px solid var(--red)}.panel-good{border-top:4px solid var(--green)}
+.event{margin-top:12px;padding:10px 12px;border-radius:10px;background:#f6f8fd;border:1px solid var(--line);min-height:46px;font-size:14px}
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:10px;margin-top:12px}
+.m{background:#f6f8fd;border-radius:10px;padding:10px}
+.m b{display:block;font-size:18px;color:var(--navy)}.m span{font-size:12px;color:var(--muted)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:16px}
+.info-grid .card{padding:16px}
+.info-grid h3{margin-bottom:6px}
+
+/* charts */
+.chart{width:100%;height:auto;display:block}
+.chart text{font-size:11px;fill:#5a6a85}.chart .val{font-weight:600;fill:#0f1b33}
+.bar{height:10px;background:#eaf0fb;border-radius:999px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--blue);border-radius:999px}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.chip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;color:var(--text)}
+.chip[aria-pressed="true"]{background:var(--royal);border-color:var(--royal);color:#fff}
+
+/* learn / quiz / modal */
+.learn{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px}
+.learn .card{padding:18px}.learn h3{margin-bottom:6px}
+.opt{display:block;width:100%;text-align:left;padding:12px 14px;border:1.5px solid var(--line);background:#fff;border-radius:12px;font:inherit;cursor:pointer;margin-bottom:8px;color:var(--text)}
+.opt:hover:not(:disabled){border-color:var(--blue)}
+.opt.right{border-color:var(--green);background:var(--green-bg)}.opt.wrong{border-color:var(--red);background:var(--red-bg)}
+.opt:disabled{cursor:default}
+.modal{position:fixed;inset:0;background:rgba(11,36,71,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:60}
+.modal[hidden]{display:none}
+.sheet{background:#fff;border-radius:16px;max-width:660px;width:100%;max-height:88vh;overflow:auto;padding:22px}
+.kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;font-size:14px;margin:12px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0}
+.steps{list-style:none;margin:0;padding:0;border-left:2px solid #d5e0f5}
+.steps li{padding:0 0 12px 14px;position:relative;font-size:14px}
+.steps li::before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;border-radius:50%;background:var(--blue)}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);background:var(--navy);color:#fff;padding:10px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:80;max-width:90vw;font-size:14px}
+#toast.show{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<aside class="side" id="side" aria-label="Main navigation">
+  <div class="brand"><span class="logo" id="logo"></span><span>SmartPay</span></div>
+  <nav class="nav" id="nav"></nav>
+  <div class="side-foot">Simulated data only. No real money, cards or bank details are used.</div>
+</aside>
+<div class="scrim" id="scrim"></div>
+<div class="main">
+  <header class="topbar">
+    <div class="row">
+      <button class="btn menu-btn" id="menu-btn" data-act="menu" aria-label="Open navigation"></button>
+      <span class="badge b-blue" id="top-notice"><span class="long">Educational simulation only</span><span class="short">Simulation only</span></span>
+    </div>
+    <div class="row">
+      <span class="badge" id="top-cycle">Cycle 0</span>
+      <span class="badge" id="top-state">Paused</span>
+    </div>
+  </header>
+  <main class="content" id="view" tabindex="-1"></main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="modal" id="modal" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title" id="sheet"></div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   SmartPay: Payment Pipeline Hazard Simulator
+   Sections: helpers, engine, lab builders, renderer, pages, router
+   Educational simulation only. No real money moves anywhere.
+   ===================================================================== */
+
+/* ------------------------------ helpers ------------------------------ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const inr = n => (n < 0 ? '-' : '') + '\u20B9' + Math.abs(n).toLocaleString('en-IN');
+
+const ICONS = {
+  dash:'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  send:'<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  flask:'<path d="M10 2v7.5L4.7 20.5a1 1 0 0 0 .9 1.5h12.8a1 1 0 0 0 .9-1.5L14 9.5V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
+  chart:'<path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/>',
+  hist:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  book:'<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+  info:'<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  pause:'<rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/>',
+  step:'<polygon points="5 4 15 12 5 20 5 4"/><line x1="19" x2="19" y1="5" y2="19"/>',
+  reset:'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  menu:'<line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/>',
+  download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
+  shield:'<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  wallet:'<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
+  swap:'<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>',
+  done:'<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  ok:'<path d="M20 6 9 17l-5-5"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  alert:'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  list:'<line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/>'
+};
+const icon = (n, s = 18) => `<svg class="ic" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ''}</svg>`;
+
+/*ENGINE-START*/
+/* ------------------------------ engine ------------------------------ */
+const STAGES = [
+  {short:'Initiation', name:'Payment initiation', icon:'send', dur:1, desc:'Amount and recipient captured; a transaction ID is generated.'},
+  {short:'Validation', name:'Validation and authentication', icon:'shield', dur:2, desc:'Details validated and the sender authenticated.'},
+  {short:'Balance check', name:'Balance verification', icon:'wallet', dur:1, desc:'Sender balance verified against committed funds only.'},
+  {short:'Debit & credit', name:'Debit and credit processing', icon:'swap', dur:1, desc:'Sender debited and recipient credited as one atomic step.'},
+  {short:'Confirmation', name:'Confirmation and receipt', icon:'done', dur:1, desc:'Final status shown with a receipt or the rejection reason.'}
+];
+const ACC0 = {'Aarav Sharma':25000,'Diya Patel':18500,'Rohan Mehta':9200,'Meera Iyer':42000,'Kabir Singh':6400};
+const NAMES = Object.keys(ACC0);
+const RISK_LIMIT = 50000;
+const KEY = 'smartpay-sim-v1';
+const SPEEDS = {slow:1100, normal:700, fast:350};
+
+function freshS(){
+  return {cycle:0, accounts:Object.assign({}, ACC0), txs:[], queue:[], locks:{}, nextId:1001, seq:0, batch:0,
+          stageBusy:[0,0,0,0,0], completions:[], log:[]};
+}
+let S = Object.assign(freshS(), {units:2, speed:SPEEDS.normal, running:false, timer:null});
+
+function addLog(text, kind){ S.log.unshift({cycle:S.cycle, text, kind:kind || 'info'}); if (S.log.length > 120) S.log.pop(); }
+function hist(t, stage, text){ t.hist.push({cycle:S.cycle, stage, text}); }
+function addHaz(t, h){ if (!t.hazards.includes(h)) t.hazards.push(h); }
+function addMit(t, m){ if (!t.mitigation.includes(m)) t.mitigation.push(m); }
+const cap = s => s === 0 ? 3 : (s === 1 ? S.units : 1);
+const inStage = s => S.txs.filter(t => t.stage === s).sort((a, b) => a.enter - b.enter);
+const active = () => S.txs.filter(t => t.stage >= 0 || t.status === 'Queued');
+
+function newTx(p){
+  const n = S.nextId++;
+  const t = {id:'TX-' + n, n, sender:p.sender, recipient:p.recipient, amount:p.amount, ref:p.ref, scenario:p.scenario || 'none',
+    key:[p.sender, p.recipient, p.amount, String(p.ref).trim().toLowerCase()].join('|'),
+    status:'Queued', stage:-1, left:0, enter:0, stalls:0, stalling:false, hazards:[], mitigation:[], reason:'', hist:[],
+    submitted:S.cycle, finished:null, rejStage:null, authFail:!!p.authFail, ran:{}, receipt:null};
+  S.txs.push(t); S.queue.push(t);
+  hist(t, 'Submitted', 'Payment of ' + inr(t.amount) + ' from ' + t.sender + ' to ' + t.recipient + ' queued');
+  return t;
+}
+function admit(){
+  while (S.queue.length && inStage(0).length < cap(0)){
+    const t = S.queue.shift();
+    t.stage = 0; t.left = STAGES[0].dur; t.enter = S.seq++; t.status = 'Processing';
+    hist(t, STAGES[0].short, 'Entered payment initiation; ID ' + t.id + ' generated');
+  }
+}
+function release(t){ if (S.locks[t.sender] === t.id) delete S.locks[t.sender]; }
+function reject(t, reason, hazard, mit){
+  const at = t.stage < 0 ? 0 : t.stage;
+  release(t);
+  t.rejStage = at; t.stage = -2; t.status = 'Rejected'; t.reason = reason; t.finished = S.cycle; t.stalling = false;
+  if (hazard) addHaz(t, hazard);
+  if (mit) addMit(t, mit);
+  hist(t, STAGES[at].short, 'Rejected: ' + reason);
+  addLog(t.id + ' rejected. ' + reason, 'bad');
+}
+function complete(t){
+  t.stage = -2; t.status = 'Completed'; t.finished = S.cycle; t.stalling = false;
+  t.receipt = {id:t.id, amount:t.amount, from:t.sender, to:t.recipient, ref:t.ref, cycle:S.cycle};
+  S.completions.push(S.cycle);
+  hist(t, STAGES[4].short, 'Receipt issued. Payment completed');
+  addLog(t.id + ' completed: ' + inr(t.amount) + ' to ' + t.recipient, 'ok');
+}
+function stall(t, s, kind){
+  t.stalls++; t.status = 'Stalled'; addHaz(t, kind);
+  const nxt = STAGES[s + 1].short.toLowerCase();
+  if (kind === 'data') addMit(t, 'Account lock: this payment waited until the earlier debit on the same account committed');
+  else addMit(t, 'Queued for a free ' + nxt + ' slot; adding capacity reduces this wait');
+  if (!t.stalling){
+    t.stalling = true;
+    const why = kind === 'data' ? 'account is locked by an earlier payment' : 'next stage is full';
+    hist(t, STAGES[s].short, 'Stalled: ' + why);
+    addLog(t.id + ' stalled at ' + STAGES[s].short + ' (' + why + ')', 'warn');
+  }
+}
+function finishStage(t, s){
+  if (!t.ran[s]){
+    t.ran[s] = true;
+    if (s === 1){
+      if (t.authFail) return reject(t, 'Authentication failed', 'control', 'Decision point redirected the payment to Rejected; balance, debit and confirmation stages were cancelled so nothing committed');
+      if (t.amount > RISK_LIMIT) return reject(t, 'Risk check rejected: amount above the ' + inr(RISK_LIMIT) + ' demo limit', 'control', 'Decision point redirected the payment to Rejected before any balance was touched');
+      hist(t, STAGES[1].short, 'Validation and authentication passed');
+    } else if (s === 2){
+      const bal = S.accounts[t.sender];
+      if (t.amount > bal){
+        const was = t.hazards.includes('data');
+        return reject(t, 'Insufficient funds: balance ' + inr(bal) + ' is below ' + inr(t.amount), null,
+          was ? 'Fresh committed balance was read under the account lock, so approval on a stale balance was prevented' : '');
+      }
+      hist(t, STAGES[2].short, 'Balance ' + inr(bal) + ' verified; account locked for this payment');
+    } else if (s === 3){
+      S.accounts[t.sender] -= t.amount; S.accounts[t.recipient] += t.amount; release(t);
+      hist(t, STAGES[3].short, 'Debited ' + inr(t.amount) + ' from ' + t.sender + ' and credited ' + t.recipient + ' atomically; lock released');
+    } else if (s === 4){
+      return complete(t);
+    }
+  }
+  const ns = s + 1;
+  if (ns === 2 && S.locks[t.sender] && S.locks[t.sender] !== t.id) return stall(t, s, 'data');
+  if (inStage(ns).length >= cap(ns)) return stall(t, s, 'structural');
+  if (ns === 2) S.locks[t.sender] = t.id;
+  t.stage = ns; t.left = STAGES[ns].dur; t.enter = S.seq++; t.status = 'Processing'; t.stalling = false;
+  hist(t, STAGES[ns].short, 'Entered ' + STAGES[ns].name.toLowerCase());
+}
+function step(){
+  if (!active().length) return false;
+  S.cycle++;
+  for (let s = 4; s >= 0; s--){
+    const list = inStage(s);
+    if (list.length) S.stageBusy[s]++;
+    for (const t of list){
+      if (t.stage !== s) continue;
+      if (t.left > 0) t.left--;
+      if (t.left === 0) finishStage(t, s);
+    }
+  }
+  admit();
+  return true;
+}
+function submit(p){
+  const amount = Number(p.amount);
+  if (!p.sender || !p.recipient) return {ok:false, error:'Choose a sender and a recipient.'};
+  if (!NAMES.includes(p.sender) || !NAMES.includes(p.recipient)) return {ok:false, error:'Unknown account.'};
+  if (!Number.isFinite(amount) || amount <= 0) return {ok:false, error:'Amount must be greater than zero.'};
+  if (!Number.isInteger(amount)) return {ok:false, error:'Enter a whole number of rupees.'};
+  if (amount > 10000000) return {ok:false, error:'Amount is too large for this demo.'};
+  if (p.sender === p.recipient) return {ok:false, error:'Sender and recipient must be different.'};
+  const ref = String(p.ref || '').trim().slice(0, 40) || 'Payment';
+  if (S.txs.length >= 400) return {ok:false, error:'History is full. Reset the simulation to continue.'};
+  const scenario = p.scenario || 'none';
+  const key = [p.sender, p.recipient, amount, ref.toLowerCase()].join('|');
+  if (S.txs.some(t => t.key === key && t.status !== 'Rejected')){
+    const t = newTx({sender:p.sender, recipient:p.recipient, amount, ref, scenario});
+    S.queue.pop();
+    t.stage = -2; t.status = 'Rejected'; t.rejStage = 0; t.finished = S.cycle;
+    t.reason = 'Duplicate submission blocked: the same payment already exists';
+    addMit(t, 'Idempotency check: a repeat of the same payment was not processed, so no duplicate debit');
+    hist(t, STAGES[0].short, 'Rejected: ' + t.reason);
+    addLog(t.id + ' blocked as a duplicate. Change the reference to send a new payment.', 'bad');
+    return {ok:false, error:'Duplicate blocked: that exact payment is already in the history. Change the reference to send another one.', tx:t};
+  }
+  const made = [];
+  if (scenario === 'data' && S.units < 2){ S.units = 2; addLog('Validation units set to 2 so both payments reach the balance check together.'); }
+  if (scenario === 'structural' && S.units !== 1){ S.units = 1; addLog('Validation units set to 1 for the structural hazard demo.'); }
+  made.push(newTx({sender:p.sender, recipient:p.recipient, amount, ref, scenario, authFail: scenario === 'control'}));
+  if (scenario === 'data'){
+    const bal = S.accounts[p.sender];
+    const other = NAMES.find(n => n !== p.sender && n !== p.recipient) || p.recipient;
+    const comp = bal > amount ? (bal - amount + 500) : Math.max(100, Math.round(bal / 2 / 100) * 100);
+    made.push(newTx({sender:p.sender, recipient:other, amount:comp, ref:'Concurrent request (data hazard demo)', scenario}));
+  }
+  if (scenario === 'structural'){
+    const others = NAMES.filter(n => n !== p.sender);
+    made.push(newTx({sender:others[0], recipient:others[1], amount:250, ref:'Burst payment A (structural demo)', scenario}));
+    made.push(newTx({sender:others[2], recipient:others[3], amount:400, ref:'Burst payment B (structural demo)', scenario}));
+  }
+  admit();
+  return {ok:true, txs:made};
+}
+const BATCH = [
+  {sender:'Aarav Sharma', recipient:'Diya Patel', amount:1500, ref:'Lunch split'},
+  {sender:'Aarav Sharma', recipient:'Rohan Mehta', amount:24000, ref:'Bike advance'},
+  {sender:'Meera Iyer', recipient:'Kabir Singh', amount:2000, ref:'Tuition'},
+  {sender:'Rohan Mehta', recipient:'Diya Patel', amount:800, ref:'Movie night', authFail:true},
+  {sender:'Diya Patel', recipient:'Meera Iyer', amount:60000, ref:'Laptop'},
+  {sender:'Kabir Singh', recipient:'Aarav Sharma', amount:900, ref:'Books'}
+];
+function seedBatch(){
+  S.batch++;
+  const sfx = S.batch > 1 ? ' #' + S.batch : '';
+  BATCH.forEach(b => { submit({sender:b.sender, recipient:b.recipient, amount:b.amount, ref:b.ref + sfx, scenario:'none'});
+    if (b.authFail){ const t = S.txs[S.txs.length - 1]; if (t && t.status !== 'Rejected') t.authFail = true; } });
+  addLog('Demo batch ' + S.batch + ' submitted (6 payments).');
+}
+function statsNow(){
+  const done = S.txs.filter(t => t.status === 'Completed');
+  const lat = done.length ? done.reduce((a, t) => a + (t.finished - t.submitted), 0) / done.length : null;
+  return {total:S.txs.length, completed:done.length, rejected:S.txs.filter(t => t.status === 'Rejected').length,
+    stalls:S.txs.reduce((a, t) => a + t.stalls, 0), avgLat:lat, thr:S.cycle ? done.length / S.cycle : 0};
+}
+function save(){
+  if (active().length) return;
+  try {
+    localStorage.setItem(KEY, JSON.stringify({accounts:S.accounts, txs:S.txs, cycle:S.cycle, nextId:S.nextId, units:S.units, speed:S.speed,
+      batch:S.batch, stageBusy:S.stageBusy, completions:S.completions, log:S.log.slice(0, 60)}));
+  } catch (e) { /* storage may be unavailable */ }
+}
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY); if (!raw) return;
+    const d = JSON.parse(raw); if (!d || typeof d !== 'object') return;
+    const acc = {};
+    for (const k of NAMES){ const v = d.accounts && d.accounts[k]; if (!Number.isFinite(v)) return; acc[k] = v; }
+    const str = (v, m) => typeof v === 'string' ? v.slice(0, m || 200) : '';
+    const txs = (Array.isArray(d.txs) ? d.txs : []).filter(t => t && typeof t.id === 'string' && t.stage === -2 && NAMES.includes(t.sender) && NAMES.includes(t.recipient) && Number.isFinite(t.amount) && Number.isFinite(t.n)).slice(-400).map(t => ({
+      id:str(t.id, 20), n:t.n, sender:t.sender, recipient:t.recipient, amount:t.amount, ref:str(t.ref, 40), scenario:str(t.scenario, 12) || 'none', key:str(t.key, 120),
+      status:t.status === 'Completed' ? 'Completed' : 'Rejected', stage:-2, left:0, enter:0, stalls:Number.isFinite(t.stalls) ? t.stalls : 0, stalling:false,
+      hazards:(Array.isArray(t.hazards) ? t.hazards : []).filter(h => ['data','control','structural'].includes(h)),
+      mitigation:(Array.isArray(t.mitigation) ? t.mitigation : []).map(m => str(m, 300)).slice(0, 6), reason:str(t.reason, 300),
+      hist:(Array.isArray(t.hist) ? t.hist : []).slice(0, 40).map(h => ({cycle:Number(h && h.cycle) || 0, stage:str(h && h.stage, 40), text:str(h && h.text, 300)})),
+      submitted:Number(t.submitted) || 0, finished:Number.isFinite(t.finished) ? t.finished : 0, rejStage:Number.isInteger(t.rejStage) ? Math.min(4, Math.max(0, t.rejStage)) : 0,
+      authFail:false, ran:{}, receipt:t.receipt && typeof t.receipt === 'object' ? {id:str(t.receipt.id, 20), amount:Number(t.receipt.amount) || 0, from:str(t.receipt.from, 40), to:str(t.receipt.to, 40), ref:str(t.receipt.ref, 40), cycle:Number(t.receipt.cycle) || 0} : null
+    }));
+    S.accounts = acc; S.txs = txs; S.cycle = Math.max(0, Math.floor(Number(d.cycle) || 0));
+    S.nextId = Math.max(Number.isFinite(d.nextId) ? d.nextId : 1001, txs.reduce((a, t) => Math.max(a, t.n + 1), 1001));
+    S.units = [1,2,3].includes(d.units) ? d.units : 2;
+    S.speed = Object.values(SPEEDS).includes(d.speed) ? d.speed : SPEEDS.normal;
+    S.batch = Math.max(0, Math.floor(Number(d.batch) || 0));
+    S.stageBusy = Array.isArray(d.stageBusy) && d.stageBusy.length === 5 ? d.stageBusy.map(x => Number(x) || 0) : [0,0,0,0,0];
+    S.completions = (Array.isArray(d.completions) ? d.completions : []).map(Number).filter(Number.isFinite).slice(-400);
+    S.log = (Array.isArray(d.log) ? d.log : []).slice(0, 60).map(l => ({cycle:Number(l && l.cycle) || 0, text:str(l && l.text, 200), kind:['ok','bad','warn','info'].includes(l && l.kind) ? l.kind : 'info'}));
+  } catch (e) { /* ignore corrupt storage */ }
+}
+function resetEngine(){
+  if (S.timer) clearInterval(S.timer);
+  const keep = {units:S.units, speed:S.speed};
+  S = Object.assign(freshS(), keep, {running:false, timer:null});
+  try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+}
+
+/* tokens for the animated pipeline (engine) */
+function engineTokens(){
+  const arr = [];
+  S.txs.slice().sort((a, b) => a.n - b.n).forEach(t => {
+    const label = '#' + t.n + ' \u00B7 ' + inr(t.amount), short = '#' + t.n;
+    const recent = t.finished !== null && S.cycle - t.finished <= 2;
+    if (t.status === 'Queued') arr.push({key:t.id, label, short, col:0, row:1, state:'queued', title:t.id + ' queued'});
+    else if (t.stage >= 0) arr.push({key:t.id, label, short, col:t.stage, row:t.status === 'Stalled' ? 1 : 0, state:t.status === 'Stalled' ? 'stalled' : 'processing', title:t.id + ' ' + t.status});
+    else if (recent && t.status === 'Completed') arr.push({key:t.id, label, short, col:4, row:0, state:'completed', title:t.id + ' completed'});
+    else if (recent && t.status === 'Rejected') arr.push({key:t.id, label, short, col:t.rejStage, row:1, state:'rejected', title:t.id + ' rejected: ' + t.reason});
+  });
+  return arr;
+}
+
+/* lab frame builders (deterministic, no DOM) */
+function metricsFrom(frames, opts){
+  opts = opts || {};
+  const n = frames.length - 1; let stalls = 0, maxQ = 0, busy = 0; const fin = {}, start = {};
+  frames.forEach((f, i) => {
+    let q = 0;
+    f.tokens.forEach(t => {
+      if (start[t.id] === undefined) start[t.id] = i;
+      if (t.state === 'stall'){ stalls++; q++; }
+      if (t.final && fin[t.id] === undefined) fin[t.id] = {at:i, t};
+      if (opts.unitCol !== undefined && t.col === opts.unitCol && t.row === 0 && t.state === 'active') busy++;
+    });
+    maxQ = Math.max(maxQ, q);
+  });
+  const list = Object.values(fin);
+  const lat = list.length ? list.reduce((a, x) => a + (x.at - start[x.t.id]), 0) / list.length : 0;
+  const valid = list.filter(x => x.t.outcome === 'completed' && !x.t.wrong).length;
+  return {cycles:n, stalls, avgLatency:lat, throughput:n ? valid / n : 0, valid,
+    completed:list.filter(x => x.t.outcome === 'completed').length, rejected:list.filter(x => x.t.outcome === 'rejected').length,
+    wrong:list.filter(x => x.t.wrong).length, maxQueue:maxQ, wasted:opts.wasted || 0,
+    utilization:opts.units ? busy / (opts.units * n) : null};
+}
+function labData(){
+  const L = {A:'A \u00B7 \u20B9700', B:'B \u00B7 \u20B9500'};
+  const t = (id, col, row, state, x) => Object.assign({id, label:L[id], col, row, state}, x || {});
+  const fin = {final:true, outcome:'completed'};
+  const bad = [
+    {note:'Two requests arrive for one account with a balance of \u20B91,000: A wants \u20B9700 and B wants \u20B9500.', balance:1000, tokens:[t('A',0,0,'active'), t('B',0,0,'active')]},
+    {note:'Both pass validation at the same time.', balance:1000, tokens:[t('A',1,0,'active'), t('B',1,0,'active')]},
+    {note:'Both read the balance before either debit is saved. Each sees \u20B91,000, so both checks pass.', balance:1000, tokens:[t('A',2,0,'hazard'), t('B',2,0,'hazard')]},
+    {note:'A debits \u20B9700 (balance \u20B9300). B debits \u20B9500 on its stale check, so the balance falls to -\u20B9200.', balance:-200, tokens:[t('A',3,0,'hazard'), t('B',3,0,'hazard')]},
+    {note:'Both payments are confirmed, but B should have been rejected. The account is overdrawn.', balance:-200, tokens:[t('A',4,0,'ok',fin), t('B',4,0,'hazard',{final:true, outcome:'completed', wrong:true})]}
+  ];
+  const good = [
+    bad[0], bad[1],
+    {note:'A takes the account lock and reads \u20B91,000. B must wait: only one payment may change this balance at a time.', balance:1000, tokens:[t('A',2,0,'active'), t('B',1,1,'stall')]},
+    {note:'A debits \u20B9700 in one atomic transaction (balance \u20B9300). B keeps waiting for the lock.', balance:300, tokens:[t('A',3,0,'active'), t('B',1,1,'stall')]},
+    {note:'A commits and releases the lock; its receipt is issued. B now gets the lock and reads the fresh balance of \u20B9300.', balance:300, tokens:[t('A',4,0,'ok',fin), t('B',2,0,'active')]},
+    {note:'\u20B9500 is more than \u20B9300, so B is rejected. The balance stays \u20B9300 and never goes negative.', balance:300, tokens:[t('A',4,0,'ok',fin), t('B',2,1,'error',{final:true, outcome:'rejected'})]}
+  ];
+  return {
+    bad:{frames:bad, m:metricsFrom(bad), result:'Both payments were approved on a stale balance. Final balance ' + inr(-200) + ' (overdrawn).', verdict:{label:'Result: WRONG (overdrawn account)', kind:'red'}},
+    good:{frames:good, m:metricsFrom(good), result:'Only A was approved. B was rejected for insufficient funds. Final balance \u20B9300, never negative.', verdict:{label:'Result: CORRECT (consistent balance)', kind:'green'}}
+  };
+}
+function labControl(){
+  const L = {P1:'P1 \u00B7 \u20B91,200', P2:'P2 \u00B7 \u20B9300'};
+  const t = (id, col, row, state, x) => Object.assign({id, label:L[id], col, row, state}, x || {});
+  const done2 = {final:true, outcome:'completed'};
+  const f0 = {note:'Payment P1 (\u20B91,200) starts. Account balance is \u20B95,000. P1 will fail authentication.', balance:5000, tokens:[t('P1',0,0,'active')]};
+  const f1 = {note:'Decision point: authentication fails for P1. A valid payment P2 (\u20B9300) enters right behind it.', balance:5000, tokens:[t('P1',1,0,'hazard'), t('P2',0,0,'active')]};
+  const bad = [f0, f1,
+    {note:'Educational fault: the pipeline ignores the failed decision and lets P1 continue to the balance check.', balance:5000, tokens:[t('P1',2,0,'hazard'), t('P2',1,0,'active')]},
+    {note:'P1 is debited \u20B91,200 although it failed authentication.', balance:3800, tokens:[t('P1',3,0,'hazard'), t('P2',2,0,'active')]},
+    {note:'A success receipt is issued for a payment that should have been rejected. P2 is debited \u20B9300.', balance:3500, tokens:[t('P1',4,0,'hazard',{final:true, outcome:'completed', wrong:true}), t('P2',3,0,'active')]},
+    {note:'P2 completes correctly. P1 wasted three stages (balance, debit, confirmation) and committed a wrong result.', balance:3500, tokens:[t('P1',4,0,'hazard',{final:true, outcome:'completed', wrong:true}), t('P2',4,0,'ok',done2)]}
+  ];
+  const p1r = t('P1',1,1,'error',{final:true, outcome:'rejected'});
+  const good = [f0, f1,
+    {note:'The decision gate redirects P1 to Rejected. Debit, credit and confirmation are cancelled. P2 continues unaffected.', balance:5000, tokens:[p1r, t('P2',1,0,'active')]},
+    {note:'P2 is verified against the unchanged balance of \u20B95,000.', balance:5000, tokens:[p1r, t('P2',2,0,'active')]},
+    {note:'P2 is debited \u20B9300. Nothing was debited for P1.', balance:4700, tokens:[p1r, t('P2',3,0,'active')]},
+    {note:'P2 is confirmed. No stage work was wasted on the rejected payment.', balance:4700, tokens:[p1r, t('P2',4,0,'ok',done2)]}
+  ];
+  return {
+    bad:{frames:bad, m:metricsFrom(bad, {wasted:3}), result:'The failed payment P1 still reached the debit stage and received a success receipt.', verdict:{label:'Result: WRONG (failed payment committed)', kind:'red'}},
+    good:{frames:good, m:metricsFrom(good, {wasted:0}), result:'P1 was redirected to Rejected with no debit. P2 completed. Final balance \u20B94,700.', verdict:{label:'Result: CORRECT (nothing committed for P1)', kind:'green'}}
+  };
+}
+function structFrames(u){
+  const P = ['T1','T2','T3'].map(id => ({id, pos:0, wait:false, left:0, fin:false}));
+  const frames = [];
+  const snap = note => frames.push({note, balance:null, tokens:P.map(p => ({id:p.id, label:p.id + ' \u00B7 \u20B9' + (p.id === 'T1' ? '500' : p.id === 'T2' ? '700' : '900'),
+    col:p.pos, row:p.wait ? 1 : 0, state:p.fin ? 'ok' : (p.wait ? 'stall' : 'active'), final:p.fin, outcome:p.fin ? 'completed' : undefined}))});
+  snap('Three payments arrive together and all need the validation stage.');
+  let guard = 0;
+  while (P.some(p => !p.fin) && guard++ < 40){
+    P.filter(p => p.pos === 3).forEach(p => { p.pos = 4; p.fin = true; });
+    P.filter(p => p.pos === 2).forEach(p => { p.pos = 3; });
+    P.filter(p => p.pos === 1 && !p.wait).forEach(p => { if (p.left > 1) p.left--; else p.pos = 2; });
+    let free = u - P.filter(p => p.pos === 1 && !p.wait).length;
+    P.filter(p => p.wait).forEach(p => { if (free > 0){ p.wait = false; p.pos = 1; p.left = 2; free--; } });
+    P.filter(p => p.pos === 0 && !p.wait).forEach(p => { if (free > 0){ p.pos = 1; p.left = 2; free--; } else p.wait = true; });
+    const w = P.filter(p => p.wait).map(p => p.id), v = P.filter(p => p.pos === 1 && !p.wait).map(p => p.id);
+    let note;
+    if (P.every(p => p.fin)) note = 'All three payments are confirmed.';
+    else if (w.length) note = w.join(' and ') + ' must wait: ' + v.join(' and ') + (v.length > 1 ? ' are' : ' is') + ' using ' + (u === 1 ? 'the only validation unit.' : 'the validation units.');
+    else if (v.length) note = v.join(' and ') + (v.length > 1 ? ' are' : ' is') + ' being validated.';
+    else note = 'The remaining payments move through the later stages without contention.';
+    snap(note);
+  }
+  return frames;
+}
+function labStruct(u){
+  const a = structFrames(1), b = structFrames(u);
+  const ma = metricsFrom(a, {unitCol:1, units:1}), mb = metricsFrom(b, {unitCol:1, units:u});
+  return {
+    bad:{frames:a, m:ma, result:'With one validation unit, ' + ma.stalls + ' stall cycles pile up and the batch needs ' + ma.cycles + ' cycles.', verdict:{label:'Result: SLOW (resource contention)', kind:'amber'}},
+    good:{frames:b, m:mb, result:'With ' + u + ' validation unit' + (u > 1 ? 's' : '') + ', ' + mb.stalls + ' stall cycles and ' + mb.cycles + ' cycles in total.',
+      verdict: u > 1 ? {label:'Result: FASTER (contention reduced)', kind:'green'} : {label:'Result: SLOW (pick 2 or 3 units to see the fix)', kind:'amber'}}
+  };
+}
+function buildLab(h, u){ return h === 'data' ? labData() : (h === 'control' ? labControl() : labStruct(u)); }
+/*ENGINE-END*/
+
+/* ------------------------------ renderer ------------------------------ */
+function pipeHTML(compact, id){
+  return `<div class="pipe ${compact ? 'compact' : ''}" ${id ? `id="${id}"` : ''}><div class="cols">${STAGES.map((s, i) => `
+    <div class="col" data-i="${i}">
+      <div class="stage"><div class="stage-h">${icon(s.icon, 16)}<span>${s.short}</span></div>${compact ? '' : `<p>${s.desc}</p>`}<span class="stage-state">Idle</span></div>
+      <div class="zones"><div class="zone main" role="group" aria-label="${s.short}: in progress"></div><div class="zone side" role="group" aria-label="${s.short}: waiting or redirected"></div></div>
+    </div>`).join('')}</div><div class="tok-layer"></div></div>`;
+}
+const PFX = {completed:'\u2713 ', rejected:'\u2715 ', hazard:'! ', stalled:'\u2016 ', queued:'\u25CB ', processing:''};
+function layoutPipe(pipe, toks){
+  if (!pipe) return;
+  pipe._last = toks;
+  const vertical = pipe.clientWidth > 0 && pipe.clientWidth < (pipe.classList.contains('compact') ? 430 : 700);
+  pipe.classList.toggle('vertical', vertical);
+  const cols = $$('.col', pipe), layer = $('.tok-layer', pipe);
+  const chipH = 30, gap = 6, step = chipH + gap;
+  const groups = {};
+  toks.forEach(t => { (groups[t.col + '-' + t.row] = groups[t.col + '-' + t.row] || []).push(t); });
+  cols.forEach((c, i) => [0, 1].forEach(r => {
+    const z = $(r ? '.zone.side' : '.zone.main', c), arr = groups[i + '-' + r] || [];
+    const zw = z.clientWidth || 100;
+    const chipW = vertical ? 80 : Math.max(56, zw - 12);
+    const per = vertical ? Math.max(1, Math.floor((zw - 10) / (chipW + gap))) : 1;
+    const rows = Math.max(1, Math.ceil(arr.length / per)), off = r ? 18 : 8;
+    z.style.minHeight = Math.max(vertical ? 58 : (r ? 64 : 112), off + rows * step + 6) + 'px';
+    z._m = {chipW, per, off};
+  }));
+  const base = pipe.getBoundingClientRect();
+  pipe._tok = pipe._tok || new Map();
+  const seen = new Set();
+  cols.forEach((c, i) => [0, 1].forEach(r => {
+    const z = $(r ? '.zone.side' : '.zone.main', c), m = z._m, rect = z.getBoundingClientRect();
+    (groups[i + '-' + r] || []).forEach((t, k) => {
+      const x = rect.left - base.left + 6 + (k % m.per) * (m.chipW + gap);
+      const y = rect.top - base.top + m.off + Math.floor(k / m.per) * step;
+      let el = pipe._tok.get(t.key);
+      if (!el){
+        el = document.createElement('div'); el.className = 'tok';
+        el.style.transition = 'none'; layer.appendChild(el);
+        el.style.transform = `translate(${x}px,${y}px)`; el.style.width = m.chipW + 'px';
+        void el.offsetWidth; el.style.transition = ''; pipe._tok.set(t.key, el);
+      }
+      el.className = 'tok t-' + t.state;
+      el.textContent = PFX[t.state] + (vertical ? t.short || t.label : t.label);
+      el.title = t.title || t.label;
+      el.style.width = m.chipW + 'px';
+      el.style.opacity = '1';
+      el.style.transform = `translate(${x}px,${y}px)`;
+      seen.add(t.key);
+    });
+  }));
+  pipe._tok.forEach((el, k) => {
+    if (!seen.has(k)){ pipe._tok.delete(k); el.style.opacity = '0'; setTimeout(() => el.remove(), 450); }
+  });
+  const sts = stageStates(toks);
+  cols.forEach((c, i) => {
+    c.classList.remove('s-active', 's-stalled', 's-error', 's-done');
+    if (sts[i].kind) c.classList.add('s-' + sts[i].kind);
+    $('.stage-state', c).textContent = sts[i].text;
+  });
+}
+function stageStates(toks){
+  return STAGES.map((_, i) => {
+    const here = toks.filter(t => t.col === i);
+    const bad = here.filter(t => t.state === 'rejected' || t.state === 'hazard').length;
+    const stl = here.filter(t => t.state === 'stalled').length;
+    const act = here.filter(t => t.state === 'processing').length;
+    const ok = here.filter(t => t.state === 'completed').length;
+    if (bad) return {kind:'error', text:bad + ' hazard' + (bad > 1 ? 's' : '')};
+    if (stl) return {kind:'stalled', text:'Stalled ' + stl};
+    if (act) return {kind:'active', text:'Active ' + act};
+    if (ok) return {kind:'done', text:'Done ' + ok};
+    return {kind:'', text:'Idle'};
+  });
+}
+function layoutAll(){ $$('.pipe').forEach(p => layoutPipe(p, p._last || [])); }
+let rz = null;
+window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(layoutAll, 120); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => setTimeout(layoutAll, 30));
+
+const labelStatus = s => ({Completed:'\u2713 Completed', Rejected:'\u2715 Rejected', Stalled:'\u2016 Stalled', Processing:'\u25CF Processing', Queued:'\u25CB Queued'}[s] || s);
+const clsStatus = s => ({Completed:'b-green', Rejected:'b-red', Stalled:'b-amber', Processing:'b-blue', Queued:''}[s] || '');
+const statusBadge = s => `<span class="badge ${clsStatus(s)}">${labelStatus(s)}</span>`;
+const HZ_NAME = {data:'Data', control:'Control', structural:'Structural'};
+const hazChips = t => t.hazards.length ? t.hazards.map(h => `<span class="badge b-blue">${HZ_NAME[h]}</span>`).join(' ') : '<span class="muted">None</span>';
+function stageOf(t){
+  if (t.status === 'Queued') return 'Queue';
+  if (t.stage >= 0) return STAGES[t.stage].short;
+  return t.status === 'Completed' ? 'Confirmation' : STAGES[t.rejStage || 0].short + ' (stopped)';
+}
+function toast(msg){
+  const el = $('#toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 3200);
+}
+
+/* chart helpers (plain SVG) */
+function niceMax(v){ if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); const f = v / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; }
+function barsSVG(cats, series, fmt, label){
+  const W = 640, H = 270, m = {l:44, r:12, t:20, b:50};
+  const mx = niceMax(Math.max(0, ...series.flatMap(s => s.vals)));
+  const iw = W - m.l - m.r, ih = H - m.t - m.b, gw = iw / cats.length;
+  const bw = Math.min(44, (gw - 26) / series.length);
+  let g = '';
+  for (let i = 0; i <= 4; i++){
+    const y = m.t + ih - ih * i / 4;
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="#e6ecf6"/><text x="${m.l - 6}" y="${y + 4}" text-anchor="end">${fmt(mx * i / 4)}</text>`;
+  }
+  cats.forEach((c, ci) => {
+    const x0 = m.l + gw * ci + (gw - bw * series.length - 4 * (series.length - 1)) / 2;
+    series.forEach((s, si) => {
+      const v = s.vals[ci], h = ih * v / mx, x = x0 + si * (bw + 4), y = m.t + ih - h;
+      g += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0)}" rx="5" fill="${s.color}"><title>${esc(s.name)}: ${esc(fmt(v))}</title></rect><text class="val" x="${x + bw / 2}" y="${y - 5}" text-anchor="middle">${esc(fmt(v))}</text>`;
+    });
+    g += `<text x="${m.l + gw * ci + gw / 2}" y="${H - 28}" text-anchor="middle">${esc(c)}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${g}</svg>`;
+}
+
+/* ------------------------------ pages ------------------------------ */
+const NAV = [
+  ['dashboard','Dashboard','dash'], ['simulator','Payment Simulator','send'], ['lab','Hazard Lab','flask'],
+  ['analytics','Performance Analytics','chart'], ['history','Transaction History','hist'], ['learn','Learn & Quiz','book'], ['about','About Project','info']
+];
+const PAGES = {};
+let cur = 'dashboard';
+
+/* ---- dashboard ---- */
+PAGES.dashboard = {
+  html(){ return `
+  <div class="page-head"><h1>Dashboard</h1><p>Live overview of the simulated payment pipeline. All accounts and activity are fictional.</p></div>
+  <div class="actions">
+    <a class="btn primary" href="#/simulator">${icon('plus', 16)} Create payment</a>
+    <button class="btn" data-act="demo" id="d-run">${icon('play', 16)} Run simulation</button>
+    <button class="btn" data-act="pause" id="d-pause">${icon('pause', 16)} Pause simulation</button>
+    <button class="btn danger" data-act="reset" id="d-reset">${icon('reset', 16)} Reset simulation</button>
+    <a class="btn" href="#/lab">${icon('flask', 16)} View Hazard Lab</a>
+  </div>
+  <div class="stats" id="d-stats"></div>
+  <section class="card" style="margin-bottom:16px"><h2 style="margin-bottom:10px">Pipeline stage occupancy</h2><div class="row wrap" id="d-strip"></div></section>
+  <section class="card"><div class="row between wrap"><h2>Live transaction activity</h2><span class="badge b-blue">Simulated</span></div>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>Transaction</th><th>Sender</th><th>Recipient</th><th class="num">Amount</th><th>Stage</th><th>Hazard</th><th>Status</th></tr></thead><tbody id="d-body"></tbody></table></div></section>`; },
+  update(){
+    const st = statsNow();
+    const cards = [
+      ['Total transactions', st.total, '', 'list'], ['Successful', st.completed, '', 'done'], ['Rejected', st.rejected, '', 'x'],
+      ['Pipeline stalls', st.stalls, '', 'clock'], ['Average latency', st.avgLat === null ? '\u2014' : st.avgLat.toFixed(1), st.avgLat === null ? '' : ' cycles', 'hist'],
+      ['Throughput', st.thr.toFixed(2), ' tx/cycle', 'chart']
+    ];
+    $('#d-stats').innerHTML = cards.map(c => `<div class="card stat"><div class="l">${icon(c[3], 16)}${c[0]}</div><div class="v">${c[1]}<span class="u">${c[2]}</span></div></div>`).join('');
+    $('#d-strip').innerHTML = STAGES.map((s, i) => { const n = S.txs.filter(t => t.stage === i).length;
+      return `<span class="badge ${n ? 'b-blue' : ''}" style="padding:6px 12px">${icon(s.icon, 14)} ${s.short}: ${n}</span>`; }).join('') +
+      `<span class="badge" style="padding:6px 12px">${icon('clock', 14)} Queued: ${S.txs.filter(t => t.status === 'Queued').length}</span>`;
+    const rows = S.txs.slice().sort((a, b) => b.n - a.n).slice(0, 12);
+    $('#d-body').innerHTML = rows.length ? rows.map(t => `<tr><td><b>${esc(t.id)}</b></td><td>${esc(t.sender)}</td><td>${esc(t.recipient)}</td><td class="num">${inr(t.amount)}</td><td>${esc(stageOf(t))}</td><td>${hazChips(t)}</td><td>${statusBadge(t.status)}</td></tr>`).join('')
+      : `<tr><td colspan="7" class="empty">No transactions yet. Create a payment, or press <b>Run simulation</b> to load a demo batch.</td></tr>`;
+    $('#d-run').disabled = S.running; $('#d-pause').disabled = !S.running;
+  }
+};
+
+/* ---- simulator ---- */
+const optsAcc = sel => NAMES.map(n => `<option value="${esc(n)}" ${n === sel ? 'selected' : ''}>${esc(n)}</option>`).join('');
+PAGES.simulator = {
+  html(){ return `
+  <div class="page-head"><h1>Payment Simulator</h1><p>Submit a fictional payment and watch it move through the five-stage pipeline.</p></div>
+  <div class="notice">${icon('shield', 20)}<div><b>Educational simulation only. No real money is transferred.</b><br><span class="sm">These five stages are an illustrative pipeline created for this simulator. Real payment networks do not necessarily follow this exact design.</span></div></div>
+  <section class="card" style="margin-top:16px">
+    <div class="row between wrap"><h2>Payment pipeline</h2><div class="row"><span class="badge b-blue" id="s-cycle">Cycle 0</span><span class="badge" id="s-state">Paused</span></div></div>
+    <div class="row wrap ctl">
+      <button class="btn primary" data-act="play" id="s-play">${icon('play', 16)} Play</button>
+      <button class="btn" data-act="pause" id="s-pause">${icon('pause', 16)} Pause</button>
+      <button class="btn" data-act="step" id="s-step">${icon('step', 16)} Step forward</button>
+      <button class="btn danger" data-act="reset">${icon('reset', 16)} Reset</button>
+      <label>Speed <select class="inl" id="speed-sel"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></select></label>
+      <label>Validation units <select class="inl" id="units-sel"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+    </div>
+    <div class="legend"><span><i style="background:#2563eb"></i>Processing</span><span><i style="background:#12a150"></i>Successful</span><span><i style="background:#e8b84d"></i>Waiting or stalled</span><span><i style="background:#d92d3f"></i>Hazard or rejected</span><span><i style="background:#c3cde0"></i>Queued</span></div>
+    ${pipeHTML(false, 'sim-pipe')}
+  </section>
+  <div class="two">
+    <section class="card"><h2 style="margin-bottom:12px">Create payment</h2>
+      <form id="pay-form" novalidate>
+        <div class="field"><label for="f-from">Sender account</label><select id="f-from">${optsAcc('Aarav Sharma')}</select></div>
+        <div class="field"><label for="f-to">Recipient account</label><select id="f-to">${optsAcc('Diya Patel')}</select></div>
+        <div class="field"><label for="f-amt">Amount (\u20B9)</label><input id="f-amt" type="number" min="1" step="1" inputmode="numeric" value="1500"></div>
+        <div class="field"><label for="f-ref">Payment reference</label><input id="f-ref" type="text" maxlength="40" value="Lunch split"></div>
+        <div class="field"><label for="f-scn">Hazard scenario</label><select id="f-scn">
+          <option value="none">None (normal payment)</option>
+          <option value="data">Data hazard: a second payment spends from the same account</option>
+          <option value="control">Control hazard: authentication fails</option>
+          <option value="structural">Structural hazard: three payments, one validation unit</option></select></div>
+        <div class="form-msg" id="f-msg" role="status" aria-live="polite"></div>
+        <button class="btn primary" type="submit">${icon('send', 16)} Submit payment</button>
+      </form>
+    </section>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <section class="card"><h2 style="margin-bottom:8px">Latest result</h2><div id="s-last"></div></section>
+      <section class="card"><h2 style="margin-bottom:8px">Fictional accounts</h2><div id="s-acc"></div></section>
+    </div>
+  </div>
+  <section class="card" style="margin-top:16px"><h2 style="margin-bottom:8px">Activity log</h2><ul class="log" id="s-log"></ul></section>`; },
+  init(){
+    $('#speed-sel').value = Object.keys(SPEEDS).find(k => SPEEDS[k] === S.speed) || 'normal';
+    $('#units-sel').value = String(S.units);
+  },
+  update(){
+    $('#s-cycle').textContent = 'Cycle ' + S.cycle;
+    const stEl = $('#s-state'); stEl.textContent = S.running ? 'Running' : 'Paused'; stEl.className = 'badge ' + (S.running ? 'b-green' : '');
+    $('#s-play').disabled = S.running; $('#s-pause').disabled = !S.running;
+    $('#units-sel').value = String(S.units);
+    layoutPipe($('#sim-pipe'), engineTokens());
+    $('#s-log').innerHTML = S.log.length ? S.log.slice(0, 40).map(l => `<li><span class="c">Cycle ${l.cycle}</span><span>${l.kind === 'ok' ? '\u2713 ' : l.kind === 'bad' ? '\u2715 ' : l.kind === 'warn' ? '\u2016 ' : ''}${esc(l.text)}</span></li>`).join('')
+      : '<li class="muted">Nothing yet. Submit a payment to start.</li>';
+    $('#s-acc').innerHTML = NAMES.map(n => `<div class="acc"><span>${esc(n)}</span><b>${inr(S.accounts[n])}</b></div>`).join('');
+    const fin = S.txs.filter(t => t.finished !== null && t.stage === -2).sort((a, b) => (b.finished - a.finished) || (b.n - a.n))[0];
+    $('#s-last').innerHTML = !fin ? '<p class="muted" style="margin:0">No finished payment yet. A receipt or rejection reason appears here.</p>'
+      : fin.status === 'Completed'
+        ? `<div class="row" style="margin-bottom:6px">${statusBadge('Completed')}<b>${esc(fin.id)}</b></div><dl class="kv"><dt>Receipt</dt><dd>${inr(fin.receipt.amount)} from ${esc(fin.receipt.from)} to ${esc(fin.receipt.to)}</dd><dt>Reference</dt><dd>${esc(fin.receipt.ref)}</dd><dt>Finished</dt><dd>Cycle ${fin.finished} (${fin.finished - fin.submitted} cycles)</dd></dl>`
+        : `<div class="row" style="margin-bottom:6px">${statusBadge('Rejected')}<b>${esc(fin.id)}</b></div><dl class="kv"><dt>Reason</dt><dd>${esc(fin.reason)}</dd><dt>Stopped at</dt><dd>${esc(STAGES[fin.rejStage].name)}</dd><dt>Balances</dt><dd>Unchanged. Rejected payments never update balances.</dd></dl>`;
+  }
+};
+
+/* ---- hazard lab ---- */
+const LABDEF = {
+  data:{name:'Data hazard', fix:'Account lock + atomic transaction',
+    def:'A later step needs data that an earlier step has not finished writing.',
+    scenario:'Two payments spend from the same account (balance \u20B91,000): A wants \u20B9700 and B wants \u20B9500. Both must not be approved from the same stale balance.',
+    problem:'Both requests read \u20B91,000 before either debit was saved, so both were approved and the balance fell to -\u20B9200.',
+    mitigation:'Serialize conflicting debits. Lock the account (or use version checks) and run the balance check plus the debit as one atomic transaction at a suitable isolation level, so the second request reads the committed balance.',
+    cpu:'Like a read-after-write (RAW) data hazard, where an instruction reads a register before the previous instruction has written it. A CPU fixes it with stalls or forwarding. Real payment systems use transaction and concurrency control instead, and the account lock plays the role of a stall.'},
+  control:{name:'Control hazard', fix:'Redirect and cancel later stages',
+    def:'The next step depends on a decision that is not known yet, so work may continue down the wrong path.',
+    scenario:'Payment P1 (\u20B91,200) fails authentication at the decision point. A valid payment P2 (\u20B9300) follows right behind it. Account balance: \u20B95,000.',
+    problem:'The faulty pipeline ignored the failed decision, so P1 reached the debit stage and received a success receipt.',
+    mitigation:'Treat the decision as a gate. Redirect failed payments to a Rejected state and cancel the later stages so nothing commits, while valid payments keep flowing.',
+    cpu:'Like a branch whose outcome is unknown, where instructions fetched down the wrong path must be flushed. Real payment apps use conditional workflows and state transitions rather than literally flushing a pipeline.'},
+  structural:{name:'Structural hazard', fix:'More validation units',
+    def:'Two steps need the same hardware or resource in the same cycle.',
+    scenario:'Three payments reach validation at the same time but only one validation unit exists. Pick 1, 2 or 3 units for the handled run.',
+    problem:'With one unit, two payments wait in a queue, which adds stalls and extra latency.',
+    mitigation:'Add capacity: more validation units (replicated workers), plus queueing with rate limits, so payments stop competing for one resource.',
+    cpu:'Like a CPU with one memory port needed by both instruction fetch and data access in the same cycle. The usual fix is to duplicate the resource.'}
+};
+const LAB = {hazard:'data', units:3, idx:0, running:false, timer:null, speed:900, res:null};
+const labMax = () => Math.max(LAB.res.bad.frames.length, LAB.res.good.frames.length) - 1;
+function labBuild(){ LAB.res = buildLab(LAB.hazard, LAB.units); LAB.idx = 0; }
+function labPause(){ LAB.running = false; clearInterval(LAB.timer); }
+function labPlay(){
+  if (!LAB.res) labBuild();
+  if (LAB.idx >= labMax()) LAB.idx = 0;
+  LAB.running = true; clearInterval(LAB.timer);
+  LAB.timer = setInterval(() => { if (LAB.idx < labMax()) LAB.idx++; if (LAB.idx >= labMax()) labPause(); labUpdate(); }, LAB.speed);
+  labUpdate();
+}
+function panelHTML(kind){
+  const d = LABDEF[LAB.hazard], bad = kind === 'bad';
+  return `<section class="card panel ${bad ? 'panel-bad' : 'panel-good'}" aria-label="${bad ? 'Hazard not handled' : 'Hazard handled'}">
+    <div class="row between wrap"><h3>${bad ? 'Hazard not handled' : 'Hazard handled'}</h3>
+      ${bad ? '<span class="badge b-red">Educational Fault Demonstration</span>' : `<span class="badge b-green">${esc(LAB.hazard === 'structural' ? LAB.units + ' validation unit' + (LAB.units > 1 ? 's' : '') : d.fix)}</span>`}</div>
+    <div class="row between wrap sm muted" style="margin:8px 0 10px"><span id="lp-${kind}-cycle"></span><span id="lp-${kind}-info"></span></div>
+    ${pipeHTML(true, 'lab-pipe-' + kind)}
+    <div class="event" id="lp-${kind}-note" aria-live="polite"></div>
+    <div id="lp-${kind}-res"></div></section>`;
+}
+function labDetailHTML(){
+  const d = LABDEF[LAB.hazard];
+  return `<div class="row between wrap"><h2>${d.name}: before and after</h2><span class="badge b-blue">Simulation cycles, not real time</span></div>
+    <p class="muted" style="margin:6px 0 0">${esc(d.scenario)}</p>
+    <div class="row wrap ctl">
+      <button class="btn primary" data-act="lab-play" id="l-play">${icon('play', 16)} Play</button>
+      <button class="btn" data-act="lab-pause" id="l-pause">${icon('pause', 16)} Pause</button>
+      <button class="btn" data-act="lab-step">${icon('step', 16)} Step forward</button>
+      <button class="btn danger" data-act="lab-reset">${icon('reset', 16)} Reset</button>
+      <label>Speed <select class="inl" id="lab-speed"><option value="1400">Slow</option><option value="900">Normal</option><option value="450">Fast</option></select></label>
+      ${LAB.hazard === 'structural' ? `<label>Validation units (handled run) <select class="inl" id="lab-units"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>` : ''}
+    </div>
+    <div class="legend"><span><i style="background:#2563eb"></i>Processing</span><span><i style="background:#12a150"></i>Successful</span><span><i style="background:#e8b84d"></i>Waiting or stalled</span><span><i style="background:#d92d3f"></i>Hazard or rejected</span></div>
+    <div class="cmp">${panelHTML('bad')}${panelHTML('good')}</div>
+    <div class="info-grid">
+      <div class="card"><h3>Observed problem</h3><p class="sm" style="margin:0">${esc(d.problem)}</p></div>
+      <div class="card"><h3>Recommended mitigation</h3><p class="sm" style="margin:0">${esc(d.mitigation)}</p></div>
+      <div class="card"><h3>CPU analogy</h3><p class="sm" style="margin:0">${esc(d.cpu)} This is an analogy, not an exact match.</p></div>
+    </div>`;
+}
+function metricGrid(h, v){
+  const m = v.m;
+  const items = [['Total cycles', m.cycles], ['Stalls', m.stalls], ['Avg latency (cycles)', m.avgLatency.toFixed(1)], ['Valid completions / cycle', m.throughput.toFixed(2)], ['Valid completions', m.valid], ['Incorrect outcomes', m.wrong]];
+  if (h === 'structural'){ items.push(['Max queue length', m.maxQueue]); items.push(['Unit utilization', Math.round((m.utilization || 0) * 100) + '%']); }
+  if (h === 'control') items.push(['Wasted stage runs', m.wasted]);
+  return `<div class="mgrid">${items.map(i => `<div class="m"><b>${i[1]}</b><span>${i[0]}</span></div>`).join('')}</div>`;
+}
+function labUpdate(){
+  if (cur !== 'lab' || !LAB.res) return;
+  ['bad', 'good'].forEach(k => {
+    const v = LAB.res[k], i = Math.min(LAB.idx, v.frames.length - 1), f = v.frames[i];
+    const toks = f.tokens.map(t => ({key:t.id, label:t.label, short:t.id, col:t.col, row:t.row,
+      state:{active:'processing', stall:'stalled', ok:'completed', error:'rejected', hazard:'hazard'}[t.state], title:t.label}));
+    layoutPipe($('#lab-pipe-' + k), toks);
+    $('#lp-' + k + '-cycle').textContent = 'Cycle ' + i + ' of ' + (v.frames.length - 1);
+    $('#lp-' + k + '-info').textContent = f.balance !== null ? 'Account balance: ' + inr(f.balance)
+      : 'Validation units: ' + (k === 'bad' ? 1 : LAB.units) + ' \u00B7 Waiting: ' + f.tokens.filter(t => t.state === 'stall').length;
+    $('#lp-' + k + '-note').textContent = f.note;
+    $('#lp-' + k + '-res').innerHTML = i >= v.frames.length - 1
+      ? `<div style="margin-top:12px"><span class="badge b-${v.verdict.kind}">${esc(v.verdict.label)}</span><p class="sm" style="margin:8px 0 0">${esc(v.result)}</p>${metricGrid(LAB.hazard, v)}</div>`
+      : '<p class="sm muted" style="margin:12px 0 0">Results appear when the run finishes. Press Play or Step forward.</p>';
+  });
+  const pl = $('#l-play'), pa = $('#l-pause'); if (pl) pl.disabled = LAB.running; if (pa) pa.disabled = !LAB.running;
+}
+PAGES.lab = {
+  html(){ if (!LAB.res) labBuild(); return `
+  <div class="page-head"><h1>Hazard Lab</h1><p>Run each hazard twice: once unhandled and once with the fix, then compare.</p></div>
+  <div class="lab-cards">${Object.keys(LABDEF).map(k => { const d = LABDEF[k]; return `
+    <article class="card hz ${k === LAB.hazard ? 'sel' : ''}" data-h="${k}"><h3>${d.name}</h3><p style="margin:0">${esc(d.def)}</p><p class="scn"><b>Scenario.</b> ${esc(d.scenario)}</p>
+    <button class="btn primary" data-act="lab-run" data-h="${k}">${icon('play', 16)} Run scenario</button></article>`; }).join('')}</div>
+  <section class="card" id="lab-detail">${labDetailHTML()}</section>`; },
+  init(){ const sp = $('#lab-speed'); if (sp) sp.value = String(LAB.speed); const u = $('#lab-units'); if (u) u.value = String(LAB.units); },
+  update(){ labUpdate(); }
+};
+
+/* ---- analytics ---- */
+function labCompare(){
+  const d = labData(), c = labControl(), s1 = labStruct(1), s3 = labStruct(3);
+  return [{name:'Data', bad:d.bad.m, good:d.good.m}, {name:'Control', bad:c.bad.m, good:c.good.m}, {name:'Structural (1 vs 3 units)', bad:s1.bad.m, good:s3.good.m}];
+}
+const AN_METRICS = {cycles:['Total cycles', v => String(Math.round(v * 10) / 10)], stalls:['Stall cycles', v => String(Math.round(v * 10) / 10)],
+  avgLatency:['Average latency (cycles)', v => (Math.round(v * 10) / 10).toFixed(1)], throughput:['Valid completions per cycle', v => v.toFixed(2)], wrong:['Incorrect outcomes', v => String(Math.round(v * 10) / 10)]};
+let anMetric = 'cycles';
+function anLiveHTML(){
+  const st = statsNow();
+  const util = S.stageBusy.map(b => S.cycle ? b / S.cycle : 0);
+  const avgUtil = util.reduce((a, b) => a + b, 0) / 5;
+  const cards = [['Simulated clock cycles', S.cycle], ['Stall cycles', st.stalls], ['Completed', st.completed], ['Rejected', st.rejected],
+    ['Average latency', st.avgLat === null ? '\u2014' : st.avgLat.toFixed(1) + ' cycles'], ['Throughput', st.thr.toFixed(2) + ' tx/cycle'], ['Average stage occupancy', Math.round(avgUtil * 100) + '%']];
+  const W = Math.max(1, Math.ceil(S.cycle / 10)), counts = new Array(W).fill(0);
+  S.completions.forEach(c => { const i = Math.min(W - 1, Math.floor((c - 1) / 10)); if (i >= 0) counts[i]++; });
+  const from = Math.max(0, W - 10), cats = counts.slice(from).map((_, i) => 'W' + (from + i + 1));
+  return `<div class="stats">${cards.map(c => `<div class="card stat"><div class="l">${c[0]}</div><div class="v" style="font-size:22px">${c[1]}</div></div>`).join('')}</div>
+  <div class="two" style="margin-top:0">
+    <section class="card"><h2>Completed payments per 10-cycle window</h2><p class="sm muted">From your live simulation. Each window is 10 simulation cycles.</p>
+      ${S.completions.length ? barsSVG(cats, [{name:'Completed', color:'#2563eb', vals:counts.slice(from)}], v => String(Math.round(v)), 'Completed payments per window') : '<p class="empty">Run a simulation to see throughput over time.</p>'}</section>
+    <section class="card"><h2>Resource utilization by stage</h2><p class="sm muted">Share of cycles in which each stage held at least one payment.</p>
+      ${S.cycle ? STAGES.map((s, i) => `<div style="margin:12px 0"><div class="row between sm"><span>${s.short}</span><b>${Math.round(util[i] * 100)}%</b></div><div class="bar" role="img" aria-label="${s.short} ${Math.round(util[i] * 100)} percent"><i style="width:${Math.round(util[i] * 100)}%"></i></div></div>`).join('') : '<p class="empty">Run a simulation to see utilization.</p>'}</section></div>`;
+}
+function anCmpHTML(){
+  const rows = labCompare(), [label, fmt] = AN_METRICS[anMetric];
+  return barsSVG(rows.map(r => r.name), [{name:'Hazard not handled', color:'#d92d3f', vals:rows.map(r => r.bad[anMetric])}, {name:'Hazard handled', color:'#2563eb', vals:rows.map(r => r.good[anMetric])}], fmt, label + ' before and after hazard handling') +
+    `<div class="row wrap gap sm" style="margin-top:6px"><span><b style="color:#d92d3f">\u25A0</b> Hazard not handled</span><span><b style="color:#2563eb">\u25A0</b> Hazard handled</span></div>
+    <div class="tbl-wrap" style="margin-top:12px"><table class="tbl" style="min-width:420px"><thead><tr><th>Hazard</th><th class="num">Not handled</th><th class="num">Handled</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="num">${fmt(r.bad[anMetric])}</td><td class="num">${fmt(r.good[anMetric])}</td></tr>`).join('')}</tbody></table></div>`;
+}
+PAGES.analytics = {
+  html(){ return `
+  <div class="page-head"><h1>Performance Analytics</h1><p>Simulation cycles are abstract clock steps. They are not real-world milliseconds or seconds.</p></div>
+  <div id="an-live"></div>
+  <section class="card" style="margin-top:16px"><div class="row between wrap"><h2>Before and after hazard handling</h2>
+    <label class="row sm" for="an-metric">Metric <select class="inl" id="an-metric">${Object.keys(AN_METRICS).map(k => `<option value="${k}" ${k === anMetric ? 'selected' : ''}>${AN_METRICS[k][0]}</option>`).join('')}</select></label></div>
+    <p class="sm muted">Computed from the deterministic Hazard Lab runs, so repeated runs give identical numbers. Handling a hazard can cost a little time (for example a lock wait) but removes incorrect outcomes.</p>
+    <div id="an-cmp">${anCmpHTML()}</div></section>`; },
+  update(){ $('#an-live').innerHTML = anLiveHTML(); }
+};
+
+/* ---- history ---- */
+const HF = {all:['All', () => true], completed:['Completed', t => t.status === 'Completed'], rejected:['Rejected', t => t.status === 'Rejected'],
+  processing:['Processing', t => t.status === 'Processing' || t.status === 'Queued'], stalled:['Stalled', t => t.stalls > 0],
+  data:['Data hazard', t => t.hazards.includes('data')], control:['Control hazard', t => t.hazards.includes('control')], structural:['Structural hazard', t => t.hazards.includes('structural')]};
+let hFilter = 'all', hQuery = '';
+function histRows(){
+  const q = hQuery.trim().toLowerCase();
+  return S.txs.slice().sort((a, b) => b.n - a.n).filter(HF[hFilter][1]).filter(t => !q || (t.id + ' ' + t.sender + ' ' + t.recipient + ' ' + t.ref + ' ' + t.status).toLowerCase().includes(q));
+}
+function histTable(){
+  const rows = histRows();
+  $('#h-count').textContent = rows.length + ' of ' + S.txs.length + ' transactions';
+  $('#h-body').innerHTML = rows.length ? rows.map(t => `<tr><td><b>${esc(t.id)}</b></td><td>${esc(t.sender)} \u2192 ${esc(t.recipient)}</td><td class="num">${inr(t.amount)}</td><td>${statusBadge(t.status)}</td><td>${hazChips(t)}</td><td class="num">${t.stalls}</td>
+    <td class="num">${t.finished === null ? '\u2014' : t.finished - t.submitted}</td><td><button class="btn" style="padding:5px 10px" data-act="tx-open" data-id="${esc(t.id)}">Details</button></td></tr>`).join('')
+    : `<tr><td colspan="8" class="empty">${S.txs.length ? 'No transactions match this filter or search.' : 'No transactions yet. Create a payment or run the demo batch.'}</td></tr>`;
+}
+PAGES.history = {
+  html(){ return `
+  <div class="page-head"><h1>Transaction History</h1><p>Search, filter and inspect every simulated payment.</p></div>
+  <section class="card">
+    <div class="row between wrap"><div class="field" style="margin:0;flex:1;min-width:220px;max-width:380px"><label for="h-q" class="sm">Search</label><input id="h-q" type="search" placeholder="ID, name, reference or status" value="${esc(hQuery)}"></div>
+      <button class="btn" data-act="export">${icon('download', 16)} Export CSV</button></div>
+    <div class="chips" role="group" aria-label="Filters">${Object.keys(HF).map(k => `<button class="chip" data-act="filter" data-f="${k}" aria-pressed="${k === hFilter}">${HF[k][0]}</button>`).join('')}</div>
+    <p class="sm muted" id="h-count" style="margin-bottom:8px"></p>
+    <div class="tbl-wrap"><table class="tbl"><thead><tr><th>ID</th><th>Payment</th><th class="num">Amount</th><th>Status</th><th>Hazard</th><th class="num">Stalls</th><th class="num">Cycles</th><th></th></tr></thead><tbody id="h-body"></tbody></table></div>
+  </section>`; },
+  update(){ histTable(); }
+};
+function csvCell(v){ let s = String(v === null || v === undefined ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; }
+async function exportCSV(){
+  if (!S.txs.length){ toast('Nothing to export yet. Create a payment first.'); return; }
+  const head = ['Transaction ID','Sender','Recipient','Amount (INR)','Reference','Status','Hazards','Stalls','Submitted cycle','Finished cycle','Execution cycles','Mitigation applied','Reason'];
+  const lines = [head.map(csvCell).join(',')].concat(S.txs.slice().sort((a, b) => a.n - b.n).map(t => [t.id, t.sender, t.recipient, t.amount, t.ref, t.status, t.hazards.join('; '), t.stalls, t.submitted,
+    t.finished === null ? '' : t.finished, t.finished === null ? '' : t.finished - t.submitted, t.mitigation.join(' | '), t.reason].map(csvCell).join(',')));
+  let dl = null;
+  try { dl = (typeof claude !== 'undefined' && claude.use) ? await claude.use('downloads') : null; } catch (e) { dl = null; }
+  if (!dl){ toast('Saving files is not available in this view.'); return; }
+  try { await dl.save({filename:'smartpay-transactions.csv', data:lines.join('\n')}); toast('CSV saved.'); }
+  catch (e) { if (e && e.code === 'declined') toast('Export cancelled.'); else toast('Could not save the CSV in this view.'); }
+}
+let lastFocus = null;
+function openTx(id){
+  const t = S.txs.find(x => x.id === id); if (!t) return;
+  lastFocus = document.activeElement;
+  $('#sheet').innerHTML = `<div class="row between"><h2 id="modal-title">${esc(t.id)} ${statusBadge(t.status)}</h2><button class="btn" data-act="modal-close" aria-label="Close details">${icon('x', 16)}</button></div>
+    <dl class="kv"><dt>Sender</dt><dd>${esc(t.sender)}</dd><dt>Recipient</dt><dd>${esc(t.recipient)}</dd><dt>Amount</dt><dd>${inr(t.amount)}</dd><dt>Reference</dt><dd>${esc(t.ref)}</dd>
+    <dt>Hazard encountered</dt><dd>${hazChips(t)}</dd><dt>Stalls</dt><dd>${t.stalls}</dd><dt>Simulated cycles</dt><dd>${t.finished === null ? 'Still running' : (t.finished - t.submitted) + ' (cycle ' + t.submitted + ' to ' + t.finished + ')'}</dd>
+    <dt>Final status</dt><dd>${esc(t.status)}${t.reason ? ': ' + esc(t.reason) : ''}</dd>
+    <dt>Mitigation applied</dt><dd>${t.mitigation.length ? '<ul style="margin:0;padding-left:18px">' + t.mitigation.map(m => '<li>' + esc(m) + '</li>').join('') + '</ul>' : 'None needed'}</dd></dl>
+    <h3 style="margin:14px 0 8px">Stage-by-stage execution</h3><ul class="steps">${t.hist.map(h => `<li><b>Cycle ${h.cycle}</b> \u00B7 ${esc(h.stage)}<br><span class="muted">${esc(h.text)}</span></li>`).join('')}</ul>`;
+  $('#modal').hidden = false; const c = $('[data-act="modal-close"]', $('#sheet')); if (c) c.focus();
+}
+function closeModal(){ $('#modal').hidden = true; if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+
+/* ---- learn and quiz ---- */
+const QUIZ = [
+  {q:'In SmartPay, payments A and B both read a \u20B91,000 balance before either debit is saved, and both are approved. Which hazard does this resemble?', o:['Structural hazard','Data hazard','Control hazard','No hazard'], a:1, e:'Both payments used the same stale balance. A CPU data hazard happens when an instruction reads a value before an earlier instruction has written it.'},
+  {q:'Which fix stops the double spend in the Hazard Lab?', o:['Add more validation units','Redirect failed payments','Serialize conflicting debits with an account lock and an atomic transaction','Skip the balance check'], a:2, e:'The lock makes the second payment wait and then read the committed balance, so only one payment can spend the same funds.'},
+  {q:'Authentication fails at the decision point, so the debit and confirmation stages must not run. Which hazard idea is this?', o:['Control hazard','Data hazard','Structural hazard','Latency'], a:0, e:'The next step depends on a decision. Like a branch in a CPU, the pipeline must follow the right path once the decision is known.'},
+  {q:'What does flushing mean in the payment analogy?', o:['Deleting all account history','Adding another payment stage','Doubling the clock speed','Cancelling work that follows a failed decision so it never commits'], a:3, e:'Flushing throws away work done on the wrong path. In SmartPay a rejected payment is redirected and its later stages are cancelled.'},
+  {q:'Three payments need one validation unit at the same time. This is a...', o:['Structural hazard','Data hazard','Control hazard','Syntax error'], a:0, e:'Several steps need the same resource at once. This is resource contention, the structural hazard idea.'},
+  {q:'Which change reduces waiting caused by a structural hazard?', o:['Fewer validation units','Longer validation time','More validation units','Skipping validation'], a:2, e:'Adding capacity removes the competition for the single resource, so fewer payments wait.'},
+  {q:'Throughput in SmartPay is...', o:['Cycles one payment spends in the pipeline','Completed transactions per simulation cycle','The balance of an account','The number of stages'], a:1, e:'Throughput measures how much work finishes per unit of time. Here it is completed payments per cycle.'},
+  {q:'Latency is...', o:['Completed payments per cycle','The number of accounts','The size of a payment','Cycles one payment takes from submission to its final result'], a:3, e:'Latency is about one payment. Throughput is about the whole system.'},
+  {q:'A stall is...', o:['A cycle where a payment waits and cannot move to the next stage','A rejected payment','A completed receipt','A new account'], a:0, e:'In a stall the stage has finished its work, but the payment cannot advance yet, for example because the account is locked.'},
+  {q:'Why do real payment systems need transaction isolation and atomic updates?', o:['To make payments look faster','To avoid creating receipts','So concurrent payments never commit inconsistent balances','To skip fraud checks'], a:2, e:'Without them two concurrent payments could both spend the same funds or leave a debit without a matching credit.'},
+  {q:'How do CPU pipeline hazards relate to payment concurrency problems?', o:['They are identical','They are related by analogy but not the same','They have nothing in common','Payment systems use CPU forwarding directly'], a:1, e:'The ideas rhyme, so the analogy teaches well, but real payment systems use database transactions and workflows rather than CPU-style forwarding.'}
+];
+const QZ = {i:0, score:0, picked:null, done:false};
+function quizHTML(){
+  if (QZ.done) return `<div class="empty"><h2>Quiz complete</h2><p style="font-size:22px;margin:10px 0"><b>${QZ.score}</b> out of ${QUIZ.length}</p><p>${QZ.score >= 9 ? 'Excellent work.' : QZ.score >= 6 ? 'Good progress. Review the Hazard Lab and try again.' : 'Revisit the lessons above and replay the Hazard Lab, then retry.'}</p><button class="btn primary" data-act="quiz-restart">${icon('reset', 16)} Restart quiz</button></div>`;
+  const q = QUIZ[QZ.i], answered = QZ.picked !== null;
+  return `<div class="row between wrap sm muted" style="margin-bottom:8px"><span>Question ${QZ.i + 1} of ${QUIZ.length}</span><span>Score: ${QZ.score}</span></div>
+    <h3 style="margin-bottom:12px">${esc(q.q)}</h3>
+    ${q.o.map((o, i) => `<button class="opt ${answered ? (i === q.a ? 'right' : i === QZ.picked ? 'wrong' : '') : ''}" data-act="quiz-pick" data-i="${i}" ${answered ? 'disabled' : ''}>${answered && i === q.a ? '\u2713 ' : answered && i === QZ.picked ? '\u2715 ' : ''}${esc(o)}</button>`).join('')}
+    ${answered ? `<div class="event" role="status"><b>${QZ.picked === q.a ? 'Correct.' : 'Not quite.'}</b> ${esc(q.e)}</div><div style="margin-top:12px"><button class="btn primary" data-act="quiz-next">${QZ.i + 1 < QUIZ.length ? 'Next question' : 'See final score'}</button></div>` : ''}`;
+}
+PAGES.learn = {
+  html(){ const L = [
+    ['What pipelining means','Pipelining splits work into stages so several items are in progress at once, like an assembly line. In SmartPay, one payment can be in validation while another is in debit processing.'],
+    ['What a pipeline stage is','One step of the line that does one job. SmartPay uses five: initiation, validation, balance check, debit and credit, confirmation. Each cycle, payments move forward one step.'],
+    ['What a hazard is','Anything that stops the next item from moving on schedule or makes it produce a wrong result. Hazards come from shared data, unknown decisions, or limited resources.'],
+    ['Data hazards','A step needs a value that an earlier step has not finished writing. Example: two payments read the same \u20B91,000 balance, so both are approved. Fix: lock the account and make the debit atomic.'],
+    ['Control hazards','The next step depends on a decision. Example: authentication fails, so debit and confirmation must be cancelled. Fix: treat the decision as a gate and redirect to Rejected.'],
+    ['Structural hazards','Two steps need the same resource at the same time. Example: three payments and one validation unit. Fix: add validation units or manage the queue.'],
+    ['Stalling and flushing','A stall holds an item back for a cycle or more (the second payment waits for the lock). A flush discards work done on a wrong path (cancelling the later stages of a rejected payment).'],
+    ['Latency and throughput','Latency is how long one payment takes. Throughput is how many payments finish per cycle. Fixes for hazards can add a little latency to one payment while keeping the whole system correct.'],
+    ['Why payments need consistency','Money must never be created, lost, or spent twice. Real systems use atomic transactions, isolation, locks or version checks, and idempotency keys so that concurrent and repeated requests stay safe.']
+  ];
+  const map = [['Data hazard (RAW)','Two payments use a stale balance','Stall, or forwarding','Account lock, atomic transaction'],['Control hazard','Failed authentication decides the path','Flush, branch prediction','Redirect to Rejected, cancel later stages'],['Structural hazard','Many payments, one validation unit','Duplicate the hardware','More units, queues, rate limits']];
+  return `<div class="page-head"><h1>Learn and Quiz</h1><p>Short lessons built around the SmartPay simulator, followed by a quiz.</p></div>
+    <div class="learn">${L.map(l => `<article class="card"><h3>${l[0]}</h3><p class="sm" style="margin:0">${l[1]}</p></article>`).join('')}</div>
+    <section class="card" style="margin-top:16px"><h2 style="margin-bottom:10px">CPU idea and SmartPay version</h2><div class="tbl-wrap"><table class="tbl" style="min-width:560px"><thead><tr><th>CPU hazard</th><th>SmartPay example</th><th>CPU fix</th><th>SmartPay fix</th></tr></thead><tbody>${map.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="sm muted" style="margin:10px 0 0">The comparison is an analogy. Payment concurrency problems are related to CPU hazards, but not identical.</p></section>
+    <section class="card" style="margin-top:16px"><h2 style="margin-bottom:12px">Quiz</h2><div id="quiz">${quizHTML()}</div></section>`; }
+};
+
+/* ---- about ---- */
+PAGES.about = {
+  html(){ return `
+  <div class="page-head"><h1>About Project</h1><p>SmartPay: Payment Pipeline Hazard Simulator</p></div>
+  <section class="card"><h2 style="margin-bottom:8px">Objective</h2><p style="margin:0">To demonstrate the concepts of data, control, and structural hazards through an interactive simulation of payment processing, and to visualize how appropriate hazard-handling strategies improve correctness and performance.</p></section>
+  <div class="info-grid">
+    <div class="card"><h3>Problem statement</h3><p class="sm" style="margin:0">Pipeline hazards are hard to picture from textbook definitions. Payment processing gives familiar examples of shared data, decisions that change the path, and limited resources.</p></div>
+    <div class="card"><h3>Objectives</h3><p class="sm" style="margin:0">Show each hazard visually, run an unhandled and a handled version side by side, and measure the effect on cycles, stalls, latency, throughput, and correctness.</p></div>
+    <div class="card"><h3>Methodology</h3><p class="sm" style="margin:0">A deterministic, cycle-based simulation moves fictional payments through five stages. The Hazard Lab replays fixed scenarios so repeated runs give identical results.</p></div>
+    <div class="card"><h3>Technology stack</h3><p class="sm" style="margin:0">HTML, CSS and vanilla JavaScript in one file. Charts are drawn as inline SVG and icons as inline SVG. Browser storage keeps balances and history between visits. No backend is used.</p></div>
+    <div class="card"><h3>Hazard classification</h3><p class="sm" style="margin:0"><b>Data:</b> stale or out-of-order shared state (RAW-like). <b>Control:</b> a decision changes the path. <b>Structural:</b> contention for one resource.</p></div>
+    <div class="card"><h3>Limitations</h3><p class="sm" style="margin:0">Payment concurrency issues are related to, but not identical to, CPU pipeline hazards. The five stages are illustrative, not a claim about real payment networks. Cycles are abstract steps, not real time. This is a prototype, not a production payment system.</p></div>
+    <div class="card"><h3>Future enhancements</h3><p class="sm" style="margin:0">A server-backed version with a real database transaction log, more hazard variants (WAR and WAW style ordering problems), retries with idempotency keys, and an adjustable fraud-review lane.</p></div>
+  </div>
+  <div class="notice" style="margin-top:16px">${icon('shield', 20)}<div><b>Educational simulation only. No real money is transferred.</b> No real passwords, cards, or bank credentials are used or stored.</div></div>`; }
+};
+
+/* ------------------------------ router ------------------------------ */
+function refresh(){
+  $('#top-cycle').textContent = 'Cycle ' + S.cycle;
+  const st = $('#top-state'); st.textContent = S.running ? 'Running' : 'Paused'; st.className = 'badge ' + (S.running ? 'b-green' : '');
+  const p = PAGES[cur]; if (p && p.update) p.update();
+}
+function route(){
+  const id = location.hash.replace(/^#\/?/, '') || 'dashboard';
+  cur = PAGES[id] ? id : 'dashboard';
+  if (cur !== 'lab') labPause();
+  const view = $('#view'); view.innerHTML = PAGES[cur].html();
+  $$('#nav a').forEach(a => { if (a.dataset.id === cur) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  if (PAGES[cur].init) PAGES[cur].init();
+  document.title = (NAV.find(n => n[0] === cur) || NAV[0])[1] + ' | SmartPay';
+  closeNav(); window.scrollTo(0, 0);
+  refresh();
+  if (cur === 'lab') labUpdate();
+  requestAnimationFrame(layoutAll);
+}
+function closeNav(){ $('#side').classList.remove('open'); $('#scrim').classList.remove('show'); }
+
+/* playback */
+function stopRun(){ S.running = false; clearInterval(S.timer); S.timer = null; }
+function tick(){
+  step();
+  if (!active().length){ stopRun(); save(); toast('All payments are finished.'); }
+  refresh();
+}
+function playRun(){
+  if (S.running) return;
+  if (!active().length){ toast('Nothing to run yet. Create a payment or run the demo batch.'); return; }
+  S.running = true; S.timer = setInterval(tick, S.speed); refresh();
+}
+function pauseRun(){ stopRun(); refresh(); }
+
+/* actions */
+const ACT = {
+  menu(){ $('#side').classList.add('open'); $('#scrim').classList.add('show'); },
+  play(){ playRun(); },
+  pause(){ pauseRun(); },
+  step(){ if (!step()) toast('No payments in the pipeline. Create a payment first.'); else if (!active().length){ save(); } refresh(); },
+  demo(){ if (!active().length) seedBatch(); playRun(); refresh(); },
+  reset(){ resetEngine(); refresh(); toast('Simulation reset. Balances and history cleared.'); },
+  'lab-run'(b){ LAB.hazard = b.dataset.h; labBuild(); const d = $('#lab-detail'); d.innerHTML = labDetailHTML(); PAGES.lab.init(); $$('.hz').forEach(c => c.classList.toggle('sel', c.dataset.h === LAB.hazard)); labPlay(); requestAnimationFrame(layoutAll); },
+  'lab-play'(){ labPlay(); },
+  'lab-pause'(){ labPause(); labUpdate(); },
+  'lab-step'(){ labPause(); if (LAB.idx < labMax()) LAB.idx++; labUpdate(); },
+  'lab-reset'(){ labPause(); LAB.idx = 0; labUpdate(); },
+  filter(b){ hFilter = b.dataset.f; $$('.chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.f === hFilter))); histTable(); },
+  export(){ exportCSV(); },
+  'tx-open'(b){ openTx(b.dataset.id); },
+  'modal-close'(){ closeModal(); },
+  'quiz-pick'(b){ if (QZ.picked !== null) return; QZ.picked = Number(b.dataset.i); if (QZ.picked === QUIZ[QZ.i].a) QZ.score++; $('#quiz').innerHTML = quizHTML(); },
+  'quiz-next'(){ if (QZ.i + 1 < QUIZ.length){ QZ.i++; QZ.picked = null; } else QZ.done = true; $('#quiz').innerHTML = quizHTML(); },
+  'quiz-restart'(){ Object.assign(QZ, {i:0, score:0, picked:null, done:false}); $('#quiz').innerHTML = quizHTML(); }
+};
+document.addEventListener('click', e => {
+  if (e.target.id === 'modal'){ closeModal(); return; }
+  if (e.target.id === 'scrim'){ closeNav(); return; }
+  const b = e.target.closest('[data-act]'); if (b && ACT[b.dataset.act]) ACT[b.dataset.act](b, e);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape'){ if (!$('#modal').hidden) closeModal(); else closeNav(); } });
+document.addEventListener('change', e => {
+  const id = e.target.id;
+  if (id === 'speed-sel'){ S.speed = SPEEDS[e.target.value] || SPEEDS.normal; if (S.running){ clearInterval(S.timer); S.timer = setInterval(tick, S.speed); } save(); }
+  else if (id === 'units-sel'){ S.units = Number(e.target.value) || 2; addLog('Validation units set to ' + S.units + '.'); refresh(); save(); }
+  else if (id === 'lab-speed'){ LAB.speed = Number(e.target.value) || 900; if (LAB.running) labPlay(); }
+  else if (id === 'lab-units'){ LAB.units = Number(e.target.value) || 3; const keep = LAB.running; labPause(); labBuild(); $('#lab-detail').innerHTML = labDetailHTML(); PAGES.lab.init(); labUpdate(); requestAnimationFrame(layoutAll); if (keep) labPlay(); }
+  else if (id === 'an-metric'){ anMetric = AN_METRICS[e.target.value] ? e.target.value : 'cycles'; $('#an-cmp').innerHTML = anCmpHTML(); }
+});
+document.addEventListener('input', e => { if (e.target.id === 'h-q'){ hQuery = e.target.value; histTable(); } });
+document.addEventListener('submit', e => {
+  if (e.target.id !== 'pay-form') return;
+  e.preventDefault();
+  const msg = $('#f-msg');
+  const res = submit({sender:$('#f-from').value, recipient:$('#f-to').value, amount:$('#f-amt').value, ref:$('#f-ref').value, scenario:$('#f-scn').value});
+  if (!res.ok){ msg.className = 'form-msg err'; msg.textContent = res.error; refresh(); return; }
+  msg.className = 'form-msg ok';
+  msg.textContent = res.txs.length > 1 ? res.txs.length + ' payments queued (' + res.txs.map(t => t.id).join(', ') + '). Watch the pipeline.' : res.txs[0].id + ' queued. Watch it move through the pipeline.';
+  playRun(); refresh();
+});
+
+/* boot */
+$('#logo').innerHTML = icon('wallet', 20);
+$('#menu-btn').innerHTML = icon('menu', 18);
+$('#nav').innerHTML = NAV.map(n => `<a href="#/${n[0]}" data-id="${n[0]}">${icon(n[2], 18)}<span>${n[1]}</span></a>`).join('');
+load();
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>
